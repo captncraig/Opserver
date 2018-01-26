@@ -24,10 +24,10 @@ namespace StackExchange.Opserver.Controllers
             return View("Instance.Actions", i);
         }
 
-        [Route("redis/instance/actions/{node}/make-master"), HttpPost, OnlyAllow(Roles.RedisAdmin)]
+        [Route("redis/instance/actions/{node}/make-master"), HttpPost, OnlyAllow(Roles.RedisAdmin | Roles.ApiRequest)]
         public Task<ActionResult> PromoteToMaster(string node) => Deslave(node, false);
 
-        [Route("redis/instance/actions/{node}/make-master-promote"), HttpPost, OnlyAllow(Roles.RedisAdmin)]
+        [Route("redis/instance/actions/{node}/make-master-promote"), HttpPost, OnlyAllow(Roles.RedisAdmin | Roles.ApiRequest)]
         public Task<ActionResult> PromoteToMasterTiebreaker(string node) => Deslave(node, true);
 
         private async Task<ActionResult> Deslave(string node, bool promote)
@@ -77,19 +77,19 @@ namespace StackExchange.Opserver.Controllers
             }
         }
 
-        [Route("redis/instance/actions/{node}/slave-to"), HttpPost, OnlyAllow(Roles.RedisAdmin)]
+        [Route("redis/instance/actions/{node}/slave-to"), HttpPost, OnlyAllow(Roles.RedisAdmin | Roles.ApiRequest)]
         public Task<ActionResult> SlaveServer(string node, string newMaster)
         {
             return PerformInstanceAction(node, i => i.SlaveToAsync(newMaster), poll: true);
         }
 
-        [Route("redis/instance/actions/{node}/set-tiebreaker"), HttpPost, OnlyAllow(Roles.RedisAdmin)]
+        [Route("redis/instance/actions/{node}/set-tiebreaker"), HttpPost, OnlyAllow(Roles.RedisAdmin | Roles.ApiRequest]
         public Task<ActionResult> SetTiebreaker(string node)
         {
             return PerformInstanceAction(node, i => i.SetSERedisTiebreakerAsync());
         }
 
-        [Route("redis/instance/actions/{node}/clear-tiebreaker"), HttpPost, OnlyAllow(Roles.RedisAdmin)]
+        [Route("redis/instance/actions/{node}/clear-tiebreaker"), HttpPost, OnlyAllow(Roles.RedisAdmin | Roles.ApiRequest)]
         public Task<ActionResult> ClearTiebreaker(string node)
         {
             return PerformInstanceAction(node, i => i.ClearSERedisTiebreakerAsync());
