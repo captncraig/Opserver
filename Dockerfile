@@ -12,10 +12,18 @@ COPY nuget.config .
 COPY src/Opserver/*.csproj ./src/Opserver/
 COPY src/Opserver.Core/*.csproj ./src/Opserver.Core/
 COPY src/Opserver.Web/*.csproj ./src/Opserver.Web/
+COPY src/Directory.Build.props /src/
 WORKDIR /app/src/Opserver.Web
 RUN dotnet restore
 
 # copy everything else and build app
-# https://github.com/AArnott/Nerdbank.GitVersioning/issues/314 is killing me
 COPY . /app
-RUN dotnet publish -c Release -o out -f netcoreapp3.0
+RUN dotnet publish -c Release -o /out -f netcoreapp3.0
+RUN dotnet --list-sdks
+RUN ls -la /out
+
+FROM mcr.microsoft.com/dotnet/core/aspnet:3.0.0-preview6-alpine3.9 AS runtime
+WORKDIR /app
+COPY --from=build /out ./
+RUN dotnet --list-sdks
+ENTRYPOINT ["dotnet", "StackExchange.Opserver.dll"]
