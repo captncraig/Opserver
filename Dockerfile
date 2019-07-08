@@ -9,7 +9,6 @@ WORKDIR /app
 # and hopefully reduce repeated pulls
 COPY Opserver.sln .
 COPY nuget.config .
-COPY src/Opserver/*.csproj ./src/Opserver/
 COPY src/Opserver.Core/*.csproj ./src/Opserver.Core/
 COPY src/Opserver.Web/*.csproj ./src/Opserver.Web/
 COPY src/Directory.Build.props /src/
