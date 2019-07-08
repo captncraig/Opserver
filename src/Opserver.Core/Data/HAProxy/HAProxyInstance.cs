@@ -8,10 +8,8 @@ using StackExchange.Profiling;
 
 namespace StackExchange.Opserver.Data.HAProxy
 {
-    public partial class HAProxyInstance : PollNode, INodeRoleProvider
+    public partial class HAProxyInstance : PollNode<HAProxyModule>, INodeRoleProvider
     {
-        internal HAProxyModule Module { get; }
-
         public string Name => Settings.Name;
         public string Description => Settings.Description;
         public int? QueryTimeoutMs => Settings.QueryTimeoutMs;
@@ -59,9 +57,8 @@ namespace StackExchange.Opserver.Data.HAProxy
         }
 
         public HAProxyInstance(HAProxyModule module, HAProxySettings.Instance instance, HAProxySettings.Group group = null)
-            : base(instance.Name + ":" + instance.Description + " - " + instance.Url)
+            : base(module, instance.Name + ":" + instance.Description + " - " + instance.Url)
         {
-            Module = module;
             RawSettings = instance;
             Settings = Module.Settings.GetInstanceSettings(instance, group);
         }
@@ -85,11 +82,11 @@ namespace StackExchange.Opserver.Data.HAProxy
                 req.Credentials = new NetworkCredential(User, Password);
                 if (QueryTimeoutMs.HasValue)
                     req.Timeout = QueryTimeoutMs.Value;
-                using (var resp = await req.GetResponseAsync().ConfigureAwait(false))
+                using (var resp = await req.GetResponseAsync())
                 using (var rs = resp.GetResponseStream())
                 {
                     if (rs == null) return null;
-                    return await ParseHAProxyStats(rs).ConfigureAwait(false);
+                    return await ParseHAProxyStats(rs);
                 }
             }
         }
@@ -100,7 +97,7 @@ namespace StackExchange.Opserver.Data.HAProxy
             using (var sr = new StreamReader(stream))
             {
                 string line;
-                while ((line = await sr.ReadLineAsync().ConfigureAwait(false)) != null)
+                while ((line = await sr.ReadLineAsync()) != null)
                 {
                     //Skip the header
                     if (line.IsNullOrEmpty() || line.StartsWith("#")) continue;

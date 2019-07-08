@@ -32,7 +32,7 @@ namespace StackExchange.Opserver.Data.Elastic
 
             public ElasticNode(string hostAndPort)
             {
-                if (Uri.TryCreate(hostAndPort, UriKind.Absolute, out Uri uri))
+                if (Uri.TryCreate(hostAndPort, UriKind.Absolute, out var uri))
                 {
                     Url = uri.ToString();
                     Host = uri.Host;
@@ -50,10 +50,9 @@ namespace StackExchange.Opserver.Data.Elastic
                     }
                     else
                     {
-                        Current.LogException(
-                            new OpserverConfigException($"Invalid port specified for {parts[0]}: '{parts[1]}'")
+                        new OpserverConfigException($"Invalid port specified for {parts[0]}: '{parts[1]}'")
                             .AddLoggedData("Config Value", hostAndPort)
-                        );
+                            .Log();
                         Port = DefaultElasticPort;
                     }
                 }
@@ -72,7 +71,7 @@ namespace StackExchange.Opserver.Data.Elastic
                 var wc = new WebClient();
                 try
                 {
-                    using (var rs = await wc.OpenReadTaskAsync(Url + path).ConfigureAwait(false))
+                    using (var rs = await wc.OpenReadTaskAsync(Url + path))
                     using (var sr = new StreamReader(rs))
                     {
                         LastSeen = DateTime.UtcNow;
@@ -94,7 +93,7 @@ namespace StackExchange.Opserver.Data.Elastic
                 catch (Exception e)
                 {
                     LastException = e;
-                    Current.LogException(e);
+                    e.Log();
                     // In the case of a 404, 500, etc - carry on to the next node
                 }
                 return null;

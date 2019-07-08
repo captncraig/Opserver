@@ -43,11 +43,7 @@ namespace StackExchange.Opserver.Data.Dashboard.Providers
                     continue;
                 }
 
-                var node = new WmiNode(nodeName)
-                {
-                    Config = _config,
-                    DataProvider = this
-                };
+                var node = new WmiNode(this, nodeName);
 
                 try
                 {
@@ -99,7 +95,7 @@ namespace StackExchange.Opserver.Data.Dashboard.Providers
         }
 
         private WmiNode GetWmiNodeById(string id) =>
-            _wmiNodeLookup.TryGetValue(id, out WmiNode n) ? n : null;
+            _wmiNodeLookup.TryGetValue(id, out var n) ? n : null;
 
         public override int MinSecondsBetweenPolls => 10;
 

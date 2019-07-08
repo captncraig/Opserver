@@ -14,6 +14,8 @@ namespace StackExchange.Opserver
 
         public List<ExceptionsGroup> Groups { get; set; } = new List<ExceptionsGroup>();
 
+        public JiraSettings Jira { get; set; } = new JiraSettings();
+
         public List<string> Applications { get; set; } = new List<string>();
 
         public List<StackTraceSourceLinkPattern> StackTraceReplacements { get; set; } = new List<StackTraceSourceLinkPattern>();
@@ -123,7 +125,7 @@ namespace StackExchange.Opserver
                     }
                     catch (Exception ex)
                     {
-                        Current.LogException($"Unable to parse source link pattern for '{str.Name}': '{str.Pattern}'", ex);
+                        new Exception($"Unable to parse source link pattern for '{str.Name}': '{str.Pattern}'", ex).Log();
                     }
                 }
             }

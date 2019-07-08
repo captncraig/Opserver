@@ -1,8 +1,8 @@
 ﻿using StackExchange.Opserver.Views.Shared;
 using Microsoft.AspNetCore.Mvc;
 using System.Net;
-using StackExchange.Opserver.Helpers;
 using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.Authorization;
 
 namespace StackExchange.Opserver.Controllers
 {
@@ -11,10 +11,7 @@ namespace StackExchange.Opserver.Controllers
         public MiscController(IOptions<OpserverSettings> _settings) : base(_settings) { }
 
         [Route("no-config")]
-        public ViewResult NoConfig()
-        {
-            return View("NoConfiguration");
-        }
+        public ViewResult NoConfig() => View("NoConfiguration");
 
         [Route("404")]
         public ViewResult PageNotFound(string title = null, string message = null)
@@ -29,14 +26,10 @@ namespace StackExchange.Opserver.Controllers
             return View("PageNotFound", vd);
         }
 
-        [Route("denied"), AlsoAllow(Models.Roles.Anonymous)]
+        [AllowAnonymous]
+        [Route("denied")]
         public ActionResult AccessDenied()
         {
-            if (Current.User.IsAnonymous)
-            {
-                return RedirectToAction(nameof(LoginController.Login), "Login"); //, new { returnUrl = Request.GetEncodedPathAndQuery() });
-            }
-
             Response.StatusCode = (int)HttpStatusCode.Forbidden;
             return View("~/Views/Shared/AccessDenied.cshtml");
         }

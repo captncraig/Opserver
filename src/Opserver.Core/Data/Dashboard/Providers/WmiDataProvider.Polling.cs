@@ -24,7 +24,28 @@ namespace StackExchange.Opserver.Data.Dashboard.Providers
                 catch (ActiveDirectoryObjectNotFoundException) { }
                 catch (Exception e)
                 {
-                    Current.LogException(e);
+                    e.Log();
+                }
+            }
+
+            private Wmi.WmiQuery Query(string query, string wmiNamespace = Wmi.DefaultWmiNamespace) =>
+                new Wmi.WmiQuery(Config, Endpoint, query, wmiNamespace);
+
+            private async Task<bool> ClassExists(string className, string wmiNamespace = Wmi.DefaultWmiNamespace)
+            {
+                // it's much faster trying to query something potentially non existent and catching an exception than to query the "meta_class" table.
+                var query = $"SELECT * FROM {className}";
+
+                try
+                {
+                    using (var q = Query(query, wmiNamespace))
+                    {
+                        return (await q.GetFirstResultAsync()) != null;
+                    }
+                }
+                catch
+                {
+                    return false;
                 }
             }
 
@@ -33,7 +54,7 @@ namespace StackExchange.Opserver.Data.Dashboard.Providers
                 try
                 {
                     var tasks = new[] { UpdateNodeDataAsync(), GetAllInterfacesAsync(), GetAllVolumesAsync(), GetServicesAsync() };
-                    await Task.WhenAll(tasks).ConfigureAwait(false);
+                    await Task.WhenAll(tasks);
                     SetReferences();
                     ClearSummaries();
 
@@ -41,18 +62,18 @@ namespace StackExchange.Opserver.Data.Dashboard.Providers
                     if (!_nodeInfoAvailable)
                     {
                         _nodeInfoAvailable = true;
-                        await PollStats().ConfigureAwait(false);
+                        await PollStats();
                     }
                 }
                 // We can get both cases. See comment from Nick Craver at https://github.com/opserver/Opserver/pull/330
                 catch (COMException e)
                 {
-                    Current.LogException(e);
+                    e.Log();
                     Status = NodeStatus.Unreachable;
                 }
                 catch (Exception e) when (e.InnerException is COMException)
                 {
-                    Current.LogException(e);
+                    e.Log();
                     Status = NodeStatus.Unreachable;
                 }
                 return this;
@@ -68,18 +89,18 @@ namespace StackExchange.Opserver.Data.Dashboard.Providers
                 try
                 {
                     var tasks = new[] { PollCpuUtilizationAsync(), PollMemoryUtilizationAsync(), PollNetworkUtilizationAsync(), PollVolumePerformanceUtilizationAsync() };
-                    await Task.WhenAll(tasks).ConfigureAwait(false);
+                    await Task.WhenAll(tasks);
                     ClearSummaries();
                 }
                 // We can get both cases. See comment from Nick Craver at https://github.com/opserver/Opserver/pull/330
                 catch (COMException e)
                 {
-                    Current.LogException(e);
+                    e.Log();
                     Status = NodeStatus.Unreachable;
                 }
                 catch (Exception e) when (e.InnerException is COMException)
                 {
-                    Current.LogException(e);
+                    e.Log();
                     Status = NodeStatus.Unreachable;
                 }
                 return this;
@@ -94,9 +115,9 @@ namespace StackExchange.Opserver.Data.Dashboard.Providers
                 Model,
                 NumberOfLogicalProcessors
                 FROM Win32_ComputerSystem";
-                using (var q = Wmi.Query(Endpoint, machineQuery))
+                using (var q = Query(machineQuery))
                 {
-                    var data = await q.GetFirstResultAsync().ConfigureAwait(false);
+                    var data = await q.GetFirstResultAsync();
                     if (data != null)
                     {
                         Model = data.Model;
@@ -118,9 +139,9 @@ namespace StackExchange.Opserver.Data.Dashboard.Providers
                 Version
                 FROM Win32_OperatingSystem";
 
-                using (var q = Wmi.Query(Endpoint, query))
+                using (var q = Query(query))
                 {
-                    var data = await q.GetFirstResultAsync().ConfigureAwait(false);
+                    var data = await q.GetFirstResultAsync();
                     if (data != null)
                     {
                         LastBoot = ManagementDateTimeConverter.ToDateTime(data.LastBootUpTime);
@@ -135,9 +156,9 @@ namespace StackExchange.Opserver.Data.Dashboard.Providers
                     SerialNumber
                     FROM Win32_BIOS";
 
-                using (var q = Wmi.Query(Endpoint, servicetagquery))
+                using (var q = Query(servicetagquery))
                 {
-                    var data = await q.GetFirstResultAsync().ConfigureAwait(false);
+                    var data = await q.GetFirstResultAsync();
                     if (data != null)
                     {
                         ServiceTag = data.SerialNumber;
@@ -147,10 +168,10 @@ namespace StackExchange.Opserver.Data.Dashboard.Providers
                 LastSync = DateTime.UtcNow;
                 Status = NodeStatus.Active;
 
-                IsVMHost = await GetIsVMHost().ConfigureAwait(false);
+                IsVMHost = await GetIsVMHost();
 
-                _canQueryAdapterUtilization = await GetCanQueryAdapterUtilization().ConfigureAwait(false);
-                _canQueryTeamingInformation = await Wmi.ClassExists(Endpoint, "MSFT_NetLbfoTeamMember", @"root\standardcimv2").ConfigureAwait(false);
+                _canQueryAdapterUtilization = await GetCanQueryAdapterUtilization();
+                _canQueryTeamingInformation = await ClassExists("MSFT_NetLbfoTeamMember", @"root\standardcimv2");
             }
 
             private async Task GetAllInterfacesAsync()
@@ -169,9 +190,9 @@ SELECT Name,
                 //'AND PhysicalAdapter = True' causes exceptions with old windows versions.
 
                 var indexMap = new Dictionary<uint, Interface>();
-                using (var q = Wmi.Query(Endpoint, query))
+                using (var q = Query(query))
                 {
-                    foreach (var data in await q.GetDynamicResultAsync().ConfigureAwait(false))
+                    foreach (var data in await q.GetDynamicResultAsync())
                     {
                         string id = $"{data.DeviceID}";
                         var i = Interfaces.Find(x => x.Id == id) ?? new Interface();
@@ -183,7 +204,7 @@ SELECT Name,
                         i.FullName = data.Description;
                         i.NodeId = Id;
                         i.LastSync = DateTime.UtcNow;
-                        i.Name = await GetRealAdapterName(data.PNPDeviceID).ConfigureAwait(false);
+                        i.Name = await GetRealAdapterName(data.PNPDeviceID);
                         i.PhysicalAddress = data.MACAddress;
                         i.Speed = data.Speed;
                         i.Status = NodeStatus.Active;
@@ -204,9 +225,9 @@ SELECT Name,
                     const string teamsQuery = "SELECT InstanceID, Name FROM MSFT_NetLbfoTeam";
                     var teamNamesToInterfaces = new Dictionary<string, Interface>();
 
-                    using (var q = Wmi.Query(Endpoint, teamsQuery, @"root\standardcimv2"))
+                    using (var q = Query(teamsQuery, @"root\standardcimv2"))
                     {
-                        foreach (var data in await q.GetDynamicResultAsync().ConfigureAwait(false))
+                        foreach (var data in await q.GetDynamicResultAsync())
                         {
                             var teamInterface = Interfaces.Find(x => x.Caption == data.Name);
 
@@ -220,9 +241,9 @@ SELECT Name,
                     }
 
                     const string teamMembersQuery = "SELECT InstanceID, Name, Team FROM MSFT_NetLbfoTeamMember";
-                    using (var q = Wmi.Query(Endpoint, teamMembersQuery, @"root\standardcimv2"))
+                    using (var q = Query(teamMembersQuery, @"root\standardcimv2"))
                     {
-                        foreach (var data in await q.GetDynamicResultAsync().ConfigureAwait(false))
+                        foreach (var data in await q.GetDynamicResultAsync())
                         {
                             string teamName = data.Team;
 
@@ -247,9 +268,9 @@ SELECT InterfaceIndex, IPAddress, IPSubnet, DHCPEnabled
   FROM WIn32_NetworkAdapterConfiguration 
  WHERE IPEnabled = 'True'";
 
-                using (var q = Wmi.Query(Endpoint, ipQuery))
+                using (var q = Query(ipQuery))
                 {
-                    foreach (var data in await q.GetDynamicResultAsync().ConfigureAwait(false))
+                    foreach (var data in await q.GetDynamicResultAsync())
                     {
                         uint index = data.InterfaceIndex;
                         if (indexMap.TryGetValue(index, out var i))
@@ -293,9 +314,9 @@ SELECT Caption,
   FROM Win32_LogicalDisk
  WHERE DriveType = 3"; //fixed disks
 
-                using (var q = Wmi.Query(Endpoint, query))
+                using (var q = Query(query))
                 {
-                    foreach (var disk in await q.GetDynamicResultAsync().ConfigureAwait(false))
+                    foreach (var disk in await q.GetDynamicResultAsync())
                     {
                         var id = $"{disk.DeviceID}";
                         var v = Volumes.Find(x => x.Id == id) ?? new Volume();
@@ -336,9 +357,9 @@ SELECT Caption,
        State
   FROM Win32_Service"; // windows services
 
-                using (var q = Wmi.Query(Endpoint, query))
+                using (var q = Query(query))
                 {
-                    foreach (var service in await q.GetDynamicResultAsync().ConfigureAwait(false))
+                    foreach (var service in await q.GetDynamicResultAsync())
                     {
                         if (ServicesPatternRegEx?.IsMatch(service.Name) ?? true)
                         {
@@ -388,9 +409,9 @@ SELECT Caption,
                     ? "PercentTotalRunTime"
                     : "PercentProcessorTime";
 
-                using (var q = Wmi.Query(Endpoint, query))
+                using (var q = Query(query))
                 {
-                    var data = await q.GetFirstResultAsync().ConfigureAwait(false);
+                    var data = await q.GetFirstResultAsync();
                     if (data == null)
                         return;
 
@@ -418,9 +439,9 @@ SELECT Caption,
             {
                 const string query = "SELECT AvailableKBytes FROM Win32_PerfRawData_PerfOS_Memory";
 
-                using (var q = Wmi.Query(Endpoint, query))
+                using (var q = Query(query))
                 {
-                    var data = await q.GetFirstResultAsync().ConfigureAwait(false);
+                    var data = await q.GetFirstResultAsync();
                     if (data == null)
                         return;
 
@@ -473,9 +494,9 @@ SELECT Caption,
                     OutAvgBps = 0
                 };
 
-                using (var q = Wmi.Query(Endpoint, query))
+                using (var q = Query(query))
                 {
-                    foreach (var data in await q.GetDynamicResultAsync().ConfigureAwait(false))
+                    foreach (var data in await q.GetDynamicResultAsync())
                     {
                         var perfData = new PerfRawData(this, data);
                         var name = perfData.Identifier;
@@ -525,9 +546,9 @@ SELECT Caption,
                     WriteAvgBps = 0
                 };
 
-                using (var q = Wmi.Query(Endpoint, query))
+                using (var q = Query(query))
                 {
-                    foreach (var data in await q.GetDynamicResultAsync().ConfigureAwait(false))
+                    foreach (var data in await q.GetDynamicResultAsync())
                     {
                         var perfData = new PerfRawData(this, data);
 
@@ -565,9 +586,9 @@ SELECT Caption,
 
                 uint returnCode = 0;
 
-                using (var q = Wmi.Query(Endpoint, query))
+                using (var q = Query(query))
                 {
-                    foreach (var service in await q.GetDynamicResultAsync().ConfigureAwait(false))
+                    foreach (var service in await q.GetDynamicResultAsync())
                     {
                         switch (action)
                         {
@@ -586,15 +607,12 @@ SELECT Caption,
                 return new ServiceActionResult(returnCode == 0, Win32ServiceReturnCodes[(int)returnCode]);
             }
 
-            #region private helpers
-
-            private Task<bool> GetIsVMHost()
-                => Wmi.ClassExists(Endpoint, "Win32_PerfRawData_HvStats_HyperVHypervisorLogicalProcessor");
+            private Task<bool> GetIsVMHost() => ClassExists("Win32_PerfRawData_HvStats_HyperVHypervisorLogicalProcessor");
 
             private async Task<string> GetRealAdapterName(string pnpDeviceId)
             {
                 var query = $"SELECT Name FROM Win32_PnPEntity WHERE DeviceId = '{pnpDeviceId.Replace("\\", "\\\\")}'";
-                var data = await Wmi.Query(Endpoint, query).GetFirstResultAsync().ConfigureAwait(false);
+                var data = await Query(query).GetFirstResultAsync();
 
                 return data?.Name;
             }
@@ -606,9 +624,9 @@ SELECT Caption,
 
                 try
                 {
-                    using (var q = Wmi.Query(Endpoint, query))
+                    using (var q = Query(query))
                     {
-                        await q.GetFirstResultAsync().ConfigureAwait(false);
+                        await q.GetFirstResultAsync();
                     }
                 }
                 catch
@@ -618,8 +636,6 @@ SELECT Caption,
 
                 return true;
             }
-
-            #endregion
 
             /// <summary>
             /// Possible return codes from service actions

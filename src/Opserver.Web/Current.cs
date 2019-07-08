@@ -5,10 +5,11 @@ using Microsoft.AspNetCore.Http;
 using StackExchange.Exceptional;
 using StackExchange.Opserver.Helpers;
 using StackExchange.Opserver.Models;
+using StackExchange.Opserver.Security;
 
 namespace StackExchange.Opserver
 {
-    public static partial class Current
+    public static class Current
     {
         private static readonly AsyncLocal<CurrentContext> _context = new AsyncLocal<CurrentContext>();
         public static CurrentContext Context => _context.Value;
@@ -16,6 +17,11 @@ namespace StackExchange.Opserver
 
         public class CurrentContext
         {
+            /// <summary>
+            /// The security provider for this context.
+            /// </summary>
+            public SecurityProvider Security { get; }
+
             /// <summary>
             /// Shortcut to HttpContext.Current.
             /// </summary>
@@ -44,18 +50,28 @@ namespace StackExchange.Opserver
                     {
                         // Calc request-based roles
                         var roles = Roles.None;
-                        if (IPAddress.IsLoopback(HttpContext.Connection.RemoteIpAddress)) roles |= Roles.LocalRequest;
-                        if (Security.IsInternalIP(RequestIP)) roles |= Roles.InternalRequest;
-                        if (IsValidApiRequest()) roles |= Roles.ApiRequest;
+                        if (IPAddress.IsLoopback(HttpContext.Connection.RemoteIpAddress))
+                        {
+                            roles |= Roles.LocalRequest;
+                        }
+                        if (Security.IsInternalIP(RequestIP))
+                        {
+                            roles |= Roles.InternalRequest;
+                        }
+                        if (Security.IsValidApiKey(Request?.Query["key"]))
+                        {
+                            roles |= Roles.ApiRequest;
+                        }
 
-                        _user = new User(HttpContext.User, roles);
+                        _user = new User(Security, HttpContext.User, roles);
                     }
                     return _user;
                 }
             }
 
-            public CurrentContext(HttpContext httpContext)
+            public CurrentContext(SecurityProvider security, HttpContext httpContext)
             {
+                Security = security;
                 HttpContext = httpContext;
             }
         }
@@ -66,6 +82,11 @@ namespace StackExchange.Opserver
         /// Shortcut to HttpContext.Current.Request.
         /// </summary>
         public static HttpRequest Request => Context.HttpContext.Request;
+
+        /// <summary>
+        /// The security provider for this context.
+        /// </summary>
+        public static SecurityProvider Security => Context.Security;
 
         /// <summary>
         /// Gets the current user from the request.

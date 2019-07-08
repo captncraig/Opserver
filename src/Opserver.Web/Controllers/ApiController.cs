@@ -1,7 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Jil;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using StackExchange.Opserver.Data;
@@ -31,7 +30,7 @@ namespace StackExchange.Opserver.Controllers
         {
             if (!Current.User.Is(Roles.ApiRequest)) return JsonError("Invalid API key");
 
-            await NodeRole.EnableAllAsync(node).ConfigureAwait(false);
+            await NodeRole.EnableAllAsync(node);
             return NodeRoles(node);
         }
 
@@ -40,7 +39,7 @@ namespace StackExchange.Opserver.Controllers
         {
             if (!Current.User.Is(Roles.ApiRequest)) return JsonError("Invalid API key");
 
-            await NodeRole.DisableAllAsync(node).ConfigureAwait(false);
+            await NodeRole.DisableAllAsync(node);
             return NodeRoles(node);
         }
 

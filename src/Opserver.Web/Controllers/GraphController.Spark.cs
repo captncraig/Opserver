@@ -36,13 +36,13 @@ namespace StackExchange.Opserver.Controllers
             Dashboard = dashboardModule;
         }
 
-        //[ResponseCache(Duration = 120, VaryByQueryKeys = new string[] { "id" })]
+        [ResponseCache(Duration = 120, VaryByQueryKeys = new string[] { "id" })]
         [Route("graph/cpu/spark"), AlsoAllow(Roles.InternalRequest)]
         public async Task<ActionResult> CPUSparkSvg(string id)
         {
             var node = Dashboard.GetNodeById(id);
             if (node == null) return ContentNotFound();
-            var points = await node.GetCPUUtilization(SparkStart, null, SparkPoints).ConfigureAwait(false);
+            var points = await node.GetCPUUtilization(SparkStart, null, SparkPoints);
 
             return points.Count == 0
                 ? EmptySparkSVG()
@@ -59,13 +59,13 @@ namespace StackExchange.Opserver.Controllers
                 getVal: p => p.Value.GetValueOrDefault());
         }
 
-        //[ResponseCache(Duration = 120, VaryByQueryKeys = new string[] { "id" })]
+        [ResponseCache(Duration = 120, VaryByQueryKeys = new string[] { "id" })]
         [Route("graph/memory/spark"), AlsoAllow(Roles.InternalRequest)]
         public async Task<ActionResult> MemorySpark(string id)
         {
             var node = Dashboard.GetNodeById(id);
             if (node?.TotalMemory == null) return ContentNotFound($"Could not determine total memory for '{id}'");
-            var points = await node.GetMemoryUtilization(SparkStart, null, SparkPoints).ConfigureAwait(false);
+            var points = await node.GetMemoryUtilization(SparkStart, null, SparkPoints);
 
             return points.Count == 0
                 ? EmptySparkSVG()
@@ -82,13 +82,13 @@ namespace StackExchange.Opserver.Controllers
                 getVal: p => p.Value.GetValueOrDefault());
         }
 
-        //[ResponseCache(Duration = 120, VaryByQueryKeys = new string[] { "id" })]
+        [ResponseCache(Duration = 120, VaryByQueryKeys = new string[] { "id" })]
         [Route("graph/network/spark"), AlsoAllow(Roles.InternalRequest)]
         public async Task<ActionResult> NetworkSpark(string id)
         {
             var node = Dashboard.GetNodeById(id);
             if (node == null) return ContentNotFound();
-            var points = await node.GetNetworkUtilization(SparkStart, null, SparkPoints).ConfigureAwait(false);
+            var points = await node.GetNetworkUtilization(SparkStart, null, SparkPoints);
 
             return points.Count == 0
                 ? EmptySparkSVG()
@@ -105,13 +105,13 @@ namespace StackExchange.Opserver.Controllers
                 getVal: p => (p.Value + p.BottomValue).GetValueOrDefault());
         }
 
-        //[ResponseCache(Duration = 120, VaryByQueryKeys = new string[] { "id", "iid" })]
+        [ResponseCache(Duration = 120, VaryByQueryKeys = new string[] { "id", "iid" })]
         [Route("graph/interface/{direction}/spark"), AlsoAllow(Roles.InternalRequest)]
         public async Task<ActionResult> InterfaceSpark(string direction, string id, string iid)
         {
             var iface = Dashboard.GetNodeById(id)?.GetInterface(iid);
             if (iface == null) return ContentNotFound();
-            var points = await iface.GetUtilization(SparkStart, null, SparkPoints).ConfigureAwait(false);
+            var points = await iface.GetUtilization(SparkStart, null, SparkPoints);
 
             if (points.Count == 0) return EmptySparkSVG();
 
@@ -121,26 +121,26 @@ namespace StackExchange.Opserver.Controllers
             return SparkSVG(points, Convert.ToInt64(points.Max(getter)), p => getter(p));
         }
 
-        //[ResponseCache(Duration = 120, VaryByQueryKeys = new string[] { "id" })]
+        [ResponseCache(Duration = 120, VaryByQueryKeys = new string[] { "id" })]
         [Route("graph/volumePerformance/spark"), AlsoAllow(Roles.InternalRequest)]
         public async Task<ActionResult> VolumeSpark(string id)
         {
             var node = Dashboard.GetNodeById(id);
             if (node == null) return ContentNotFound();
-            var points = await node.GetVolumePerformanceUtilization(SparkStart, null, SparkPoints).ConfigureAwait(false);
+            var points = await node.GetVolumePerformanceUtilization(SparkStart, null, SparkPoints);
 
             return points.Count == 0
                 ? EmptySparkSVG()
                 : SparkSVG(points, Convert.ToInt64(points.Max(p => p.Value + p.BottomValue).GetValueOrDefault()), p => (p.Value + p.BottomValue).GetValueOrDefault());
         }
 
-        //[ResponseCache(Duration = 120, VaryByQueryKeys = new string[] { "id", "iid" })]
+        [ResponseCache(Duration = 120, VaryByQueryKeys = new string[] { "id", "iid" })]
         [Route("graph/volumePerformance/{direction}/spark"), AlsoAllow(Roles.InternalRequest)]
         public async Task<ActionResult> VolumeSpark(string direction, string id, string iid)
         {
             var volume = Dashboard.GetNodeById(id)?.GetVolume(iid);
             if (volume == null) return ContentNotFound();
-            var points = await volume.GetPerformanceUtilization(SparkStart, null, SparkPoints).ConfigureAwait(false);
+            var points = await volume.GetPerformanceUtilization(SparkStart, null, SparkPoints);
 
             if (points.Count == 0) return EmptySparkSVG();
 
@@ -150,7 +150,7 @@ namespace StackExchange.Opserver.Controllers
             return SparkSVG(points, Convert.ToInt64(points.Max(getter)), p => getter(p));
         }
 
-        //[ResponseCache(Duration = 120, VaryByQueryKeys = new string[] { "node" })]
+        [ResponseCache(Duration = 120, VaryByQueryKeys = new string[] { "node" })]
         [Route("graph/sql/cpu/spark")]
         public ActionResult SQLCPUSpark(string node)
         {
@@ -196,7 +196,7 @@ namespace StackExchange.Opserver.Controllers
                     }
                 }));
             }
-            await Task.WhenAll(lookups).ConfigureAwait(false);
+            await Task.WhenAll(lookups);
 
             int currentYTop = 0;
             foreach (var pl in pointsLookup)

@@ -11,9 +11,8 @@ using System.Diagnostics;
 
 namespace StackExchange.Opserver.Data.PagerDuty
 {
-    public partial class PagerDutyAPI : PollNode
+    public partial class PagerDutyAPI : PollNode<PagerDutyModule>
     {
-        public PagerDutyModule Module { get; }
         internal static readonly Options JilOptions = new Options(
             dateFormat: DateTimeFormat.ISO8601,
             unspecifiedDateTimeKindBehavior: UnspecifiedDateTimeKindBehavior.IsUTC,
@@ -73,10 +72,7 @@ namespace StackExchange.Opserver.Data.PagerDuty
             );
         }
 
-        public PagerDutyAPI(PagerDutyModule module) : base(nameof(PagerDutyAPI))
-        {
-            Module = module;
-        }
+        public PagerDutyAPI(PagerDutyModule module) : base(module, nameof(PagerDutyAPI)) { }
 
         /// <summary>
         /// Gets content from the PagerDuty API.
@@ -115,13 +111,13 @@ namespace StackExchange.Opserver.Data.PagerDuty
                         var byteData = new ASCIIEncoding().GetBytes(stringData);
                         req.ContentType = "application/json";
                         req.ContentLength = byteData.Length;
-                        var putStream = await req.GetRequestStreamAsync().ConfigureAwait(false);
-                        await putStream.WriteAsync(byteData, 0, byteData.Length).ConfigureAwait(false);
+                        var putStream = await req.GetRequestStreamAsync();
+                        await putStream.WriteAsync(byteData, 0, byteData.Length);
                     }
                 }
                 try
                 {
-                    var resp = await req.GetResponseAsync().ConfigureAwait(false);
+                    var resp = await req.GetResponseAsync();
                     using (var rs = resp.GetResponseStream())
                     {
                         if (rs == null) return getFromJson(null);
@@ -150,11 +146,11 @@ namespace StackExchange.Opserver.Data.PagerDuty
                         Trace.WriteLine(rex);
                     }
 
-                    Current.LogException(
-                        e.AddLoggedData("Sent Data", JSON.Serialize(data, JilOptions))
-                         .AddLoggedData("Endpoint", fullUri)
-                         .AddLoggedData("Headers", req.Headers.ToString())
-                         .AddLoggedData("Content Type", req.ContentType));
+                    e.AddLoggedData("Sent Data", JSON.Serialize(data, JilOptions))
+                     .AddLoggedData("Endpoint", fullUri)
+                     .AddLoggedData("Headers", req.Headers.ToString())
+                     .AddLoggedData("Content Type", req.ContentType)
+                     .Log();
                     return getFromJson("fail");
                 }
             }

@@ -32,7 +32,7 @@ namespace StackExchange.Opserver.Controllers
         public async Task<ActionResult> Dashboard()
         {
             var api = Module.API;
-            await api.PollAsync().ConfigureAwait(false);
+            await api.PollAsync();
 
             var vd = new PagerDutyModel
             {
@@ -58,9 +58,6 @@ namespace StackExchange.Opserver.Controllers
         }
 
         [Route("pagerduty/escalation/full")]
-        public ActionResult FullEscalation()
-        {
-            return View("PagerDuty.EscFull", Module.API.OnCallInfo.Data);
-        }
+        public ActionResult FullEscalation() => View("PagerDuty.EscFull", Module.API.OnCallInfo.Data);
     }
 }

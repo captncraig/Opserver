@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Options;
 using StackExchange.Profiling;
 using StackExchange.Profiling.Internal;
 using StackExchange.Profiling.Storage;
@@ -37,6 +38,11 @@ namespace StackExchange.Opserver.Data
         // TODO: Find name that doesn't suck, has to override so...
         public override Task PollGenericAsync(bool force = false) => PollAsync(force);
 
+        /// <summary>
+        /// Allows awaiting of this cache directly.
+        /// </summary>
+        public TaskAwaiter<T> GetAwaiter() => DataTask.GetAwaiter();
+
         // This makes more semantic sense...
         public Task<T> GetData() => PollAsync();
 
@@ -69,7 +75,7 @@ namespace StackExchange.Opserver.Data
 
             Interlocked.Increment(ref PollingEngine._activePolls);
             PollStatus = "Awaiting Semaphore";
-            await _pollSemaphoreSlim.WaitAsync().ConfigureAwait(false);
+            await _pollSemaphoreSlim.WaitAsync();
             bool errored = false;
             try
             {
@@ -78,7 +84,7 @@ namespace StackExchange.Opserver.Data
                 CurrentPollDuration = Stopwatch.StartNew();
                 _isPolling = true;
                 PollStatus = "UpdateCache";
-                await _updateFunc().ConfigureAwait(false);
+                await _updateFunc();
                 PollStatus = "UpdateCache Complete";
                 Interlocked.Increment(ref _pollsTotal);
                 if (DataTask != null)
@@ -145,6 +151,7 @@ namespace StackExchange.Opserver.Data
             : base(cacheDuration, memberName, sourceFilePath, sourceLineNumber)
         {
             MiniProfilerDescription = "Poll: " + description; // concatenate once
+            // TODO: Settings via owner
             logExceptions = logExceptions ?? LogExceptions;
 
             _updateFunc = async () =>
@@ -166,7 +173,7 @@ namespace StackExchange.Opserver.Data
                             var task = getData();
                             if (timeoutMs.HasValue)
                             {
-                                if (await Task.WhenAny(task, Task.Delay(timeoutMs.Value)).ConfigureAwait(false) == task)
+                                if (await Task.WhenAny(task, Task.Delay(timeoutMs.Value)) == task)
                                 {
                                     // Re-await for throws.
                                     Data = await task;
@@ -192,7 +199,7 @@ namespace StackExchange.Opserver.Data
                         if (logExceptions.Value)
                         {
                             addExceptionData?.Invoke(e);
-                            Current.LogException(e);
+                            e.Log();
                         }
                         var errorMessage = StringBuilderCache.Get()
                             .Append("Unable to fetch from ")
@@ -246,7 +253,7 @@ namespace StackExchange.Opserver.Data
                     catch (Exception e)
                     {
                         tc.Error = e;
-                        Current.LogException(e);
+                        e.Log();
                     }
                     tc.LastFetch = DateTime.UtcNow;
                     return tc;
@@ -290,8 +297,11 @@ namespace StackExchange.Opserver.Data
         /// </summary>
         public MiniProfiler Profiler { get; protected set; }
 
-        public static bool EnableProfiling { get; set; }
-        public static bool LogExceptions { get; set; }
+        private static IOptions<OpserverSettings> Settings { get; set; }
+        public static bool EnableProfiling => false; // Settings.Value.Global.ProfilePollers;
+        public static bool LogExceptions => false; // Settings.Value.Global.LogPollerExceptions;
+
+        public static void Configure(IOptions<OpserverSettings> settings) => Settings = settings;
 
         internal void SetSuccess()
         {

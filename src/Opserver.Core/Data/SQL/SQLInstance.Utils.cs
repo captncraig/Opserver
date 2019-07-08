@@ -13,14 +13,14 @@ namespace StackExchange.Opserver.Data.SQL
         {
             try
             {
-                using (var conn = await GetConnectionAsync().ConfigureAwait(false))
+                using (var conn = await GetConnectionAsync())
                 {
-                    return await conn.ExecuteAsync("DBCC FREEPROCCACHE (@planHandle);", new { planHandle }).ConfigureAwait(false);
+                    return await conn.ExecuteAsync("DBCC FREEPROCCACHE (@planHandle);", new { planHandle });
                 }
             }
             catch (Exception ex)
             {
-                Current.LogException(ex);
+                ex.Log();
                 return 0;
             }
         }

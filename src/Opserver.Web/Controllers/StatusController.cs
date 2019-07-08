@@ -1,6 +1,5 @@
 ﻿using System.Net;
 using StackExchange.Opserver.Helpers;
-using StackExchange.Opserver.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -22,7 +21,6 @@ namespace StackExchange.Opserver.Controllers
         }
     }
 
-    [OnlyAllow(Roles.Authenticated)]
     public partial class StatusController : Controller
     {
         public virtual ISecurableModule SettingsModule => null;
@@ -41,7 +39,7 @@ namespace StackExchange.Opserver.Controllers
         public void SetTitle(string title)
         {
             title = title.HtmlEncode();
-            ViewData[ViewDataKeys.PageTitle] = title.IsNullOrEmpty() ? SiteSettings.SiteName : string.Concat(title, " - ", SiteSettings.SiteName);
+            ViewData[ViewDataKeys.PageTitle] = title.IsNullOrEmpty() ? Settings.Global.SiteName : string.Concat(title, " - ", Settings.Global.SiteName);
         }
 
         /// <summary>

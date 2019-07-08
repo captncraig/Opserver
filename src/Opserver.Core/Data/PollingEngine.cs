@@ -101,11 +101,11 @@ namespace StackExchange.Opserver.Data
                 catch (ThreadAbortException e)
                 {
                     if (!_shuttingDown)
-                        Current.LogException("Global polling loop shutting down", e);
+                        new Exception("Global polling loop shutting down", e).Log();
                 }
                 catch (Exception ex)
                 {
-                    Current.LogException(ex);
+                    ex.Log();
                 }
                 try
                 {
@@ -145,7 +145,7 @@ namespace StackExchange.Opserver.Data
             }
             catch (Exception e)
             {
-                Current.LogException(e);
+                e.Log();
             }
             finally
             {
@@ -177,12 +177,12 @@ namespace StackExchange.Opserver.Data
                 var cache = node.DataPollers.FirstOrDefault(p => p.UniqueId == cacheGuid);
                 if (cache != null)
                 {
-                    await cache.PollGenericAsync(true).ConfigureAwait(false);
+                    await cache.PollGenericAsync(true);
                 }
                 return cache?.LastPollSuccessful ?? false;
             }
             // Polling an entire server
-            await node.PollAsync(true).ConfigureAwait(false);
+            await node.PollAsync(true);
             return true;
         }
 

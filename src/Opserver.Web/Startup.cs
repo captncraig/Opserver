@@ -1,15 +1,14 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using StackExchange.Opserver.Data;
 using StackExchange.Opserver.Helpers;
+using StackExchange.Opserver.Security;
 using StackExchange.Profiling;
 
 namespace StackExchange.Opserver
@@ -23,14 +22,6 @@ namespace StackExchange.Opserver
             _configuration = configuration;
         }
 
-        public void TODO()
-        {
-            Cache.EnableProfiling = SiteSettings.PollerProfiling;
-            Cache.LogExceptions = SiteSettings.LogPollerExceptions;
-            // When settings change, reload the app pool
-            //Current.Settings.OnChanged += HttpRuntime.UnloadAppDomain;
-        }
-
         public void ConfigureServices(IServiceCollection services)
         {
             services.Configure<OpserverSettings>(_configuration);
@@ -40,8 +31,9 @@ namespace StackExchange.Opserver
             services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
                     .AddCookie(options =>
                     {
+                        options.AccessDeniedPath = "/denied";
                         options.LoginPath = "/login";
-                        options.LoginPath = "/logout";
+                        options.LogoutPath = "/logout";
                     });
             services.AddHttpContextAccessor()
                     .AddMemoryCache()
@@ -76,31 +68,34 @@ namespace StackExchange.Opserver
 
             services.AddSingleton<IHostedService, PollingService>();
             services.AddSingleton<IConfigureOptions<MiniProfilerOptions>, MiniProfilerCacheStorageDefaults>();
-            //services.AddMiniProfiler(options =>
-            //{
-            //    options.RouteBasePath = "/profiler/";
-            //    options.PopupRenderPosition = RenderPosition.Left;
-            //    options.PopupMaxTracesToShow = 5;
-            //    options.ShouldProfile = req =>
-            //    {
-            //        var conn = req.HttpContext.Connection;
-            //        switch (SiteSettings.ProfilingMode)
-            //        {
-            //            case SiteSettings.ProfilingModes.Enabled:
-            //                return true;
-            //            case SiteSettings.ProfilingModes.LocalOnly:
-            //                return conn.RemoteIpAddress.Equals(conn.LocalIpAddress) || IPAddress.IsLoopback(conn.RemoteIpAddress);
-            //            case SiteSettings.ProfilingModes.AdminOnly:
-            //                return Current.User?.IsGlobalAdmin == true;
-            //            default:
-            //                return false;
-            //        }
-            //    };
-            //    options.IgnorePath("/graph")
-            //           .IgnorePath("/login")
-            //           .IgnorePath("/spark")
-            //           .IgnorePath("/top-refresh");
-            //});
+            services.AddMiniProfiler(options =>
+            {
+                //options.RouteBasePath = "/profiler/";
+                options.PopupRenderPosition = RenderPosition.Left;
+                options.PopupMaxTracesToShow = 5;
+                options.ShouldProfile = _ =>
+                {
+                    return true;
+                    //switch (SiteSettings.ProfilingMode)
+                    //{
+                    //    case ProfilingModes.Enabled:
+                    //        return true;
+                    //    case SiteSettings.ProfilingModes.LocalOnly:
+                    //        return Current.User?.Is(Models.Roles.LocalRequest) == true;
+                    //    case SiteSettings.ProfilingModes.AdminOnly:
+                    //        return Current.User?.IsGlobalAdmin == true;
+                    //    default:
+                    //        return false;
+                    //}
+                };
+                options.EnableServerTimingHeader = true;
+                options.IgnorePath("/graph")
+                       .IgnorePath("/login")
+                       .IgnorePath("/spark")
+                       .IgnorePath("/top-refresh");
+            });
+            services.Configure<SecuritySettings>(_configuration.GetSection("Security"));
+            services.AddSingleton<SecurityManager>();
             services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme);
             services.AddMvc();
         }
@@ -108,26 +103,42 @@ namespace StackExchange.Opserver
         public void Configure(
             IApplicationBuilder appBuilder,
             IHostApplicationLifetime appLifetime,
+            IOptions<OpserverSettings> settings,
+            SecurityManager securityManager,
             IEnumerable<StatusModule> modules
         )
         {
+            //appBuilder.UseStaticFiles()
+            //          .UseExceptional()
+            //          //.UseMiniProfiler()
+            //          .UseAuthentication()
+            //          .Use(async (httpContext, next)  =>
+            //          {
+            //              Current.SetContext(new Current.CurrentContext(securityManager.CurrentProvider, httpContext));
+            //              await next();
+            //          })
+            //          .UseAuthorization()
+            //          .UseRouting()
+            //          .UseEndpoints(endpoints => endpoints.MapDefaultControllerRoute());
+
             appBuilder.UseStaticFiles()
                       .UseExceptional()
-                      //.UseMiniProfiler()
+                      .UseRouting()
+                      .UseMiniProfiler()
                       .UseAuthentication()
                       .UseAuthorization()
-                      .UseRouting()
-                      .Use(async (httpContext, next)  =>
+                      .Use(async (httpContext, next) =>
                       {
-                          Current.SetContext(new Current.CurrentContext(httpContext));
+                          Current.SetContext(new Current.CurrentContext(securityManager.CurrentProvider, httpContext));
                           await next();
                       })
-                      .UseEndpoints(endpoints =>
-                      {
+                      .UseResponseCaching()
+                      .UseEndpoints(endpoints => {
                           endpoints.MapDefaultControllerRoute();
                       });
             appLifetime.ApplicationStopping.Register(OnShutdown);
             NavTab.ConfigureAll(modules); // TODO: UseNavTabs() or something
+            Cache.Configure(settings);
         }
 
         private void OnShutdown()

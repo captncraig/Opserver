@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using StackExchange.Opserver.Data.Jira;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.Authorization;
 
 namespace StackExchange.Opserver.Controllers
 {
@@ -56,7 +57,7 @@ namespace StackExchange.Opserver.Controllers
             }
         }
 
-        public string GetParam(string param) => Request.HasFormContentType ? Request.Form[param] : Request.Query[param];
+        public string GetParam(string param) => Current.Request.HasFormContentType ? Current.Request.Form[param] : Current.Request.Query[param];
 
         // TODO: Move entirely to model binder
         private async Task<ExceptionStore.SearchParams> GetSearchAsync()
@@ -80,7 +81,7 @@ namespace StackExchange.Opserver.Controllers
 
             if (CurrentSimilarId.HasValue)
             {
-                var error = await CurrentStore.GetErrorAsync(CurrentLog, CurrentSimilarId.Value).ConfigureAwait(false);
+                var error = await CurrentStore.GetErrorAsync(CurrentLog, CurrentSimilarId.Value);
                 if (error != null)
                 {
                     result.Message = error.Message;
@@ -114,23 +115,23 @@ namespace StackExchange.Opserver.Controllers
         [DefaultRoute("exceptions")]
         public async Task<ActionResult> Exceptions()
         {
-            var search = await GetSearchAsync().ConfigureAwait(false);
-            var errors = await CurrentStore.GetErrorsAsync(search).ConfigureAwait(false);
+            var search = await GetSearchAsync();
+            var errors = await CurrentStore.GetErrorsAsync(search);
 
             var vd = GetModel(errors);
             vd.SearchParams = search;
-            vd.LoadAsyncSize = Settings.Exceptions.PageSize;
+            vd.LoadAsyncSize = Module.Settings.PageSize;
             return View(vd);
         }
 
         [Route("exceptions/load-more")]
         public async Task<ActionResult> LoadMore(int? count = null, Guid? prevLast = null)
         {
-            var search = await GetSearchAsync().ConfigureAwait(false);
-            search.Count = count ?? Settings.Exceptions.PageSize;
+            var search = await GetSearchAsync();
+            search.Count = count ?? Module.Settings.PageSize;
             search.StartAt = prevLast;
 
-            var errors = await CurrentStore.GetErrorsAsync(search).ConfigureAwait(false);
+            var errors = await CurrentStore.GetErrorsAsync(search);
             var vd = GetModel(errors);
             vd.SearchParams = search;
             return View("Exceptions.Table.Rows", vd);
@@ -139,7 +140,7 @@ namespace StackExchange.Opserver.Controllers
         [Route("exceptions/detail")]
         public async Task<ActionResult> Detail(Guid id)
         {
-            var e = await CurrentStore.GetErrorAsync(CurrentLog, id).ConfigureAwait(false);
+            var e = await CurrentStore.GetErrorAsync(CurrentLog, id);
             var vd = GetModel(null);
             vd.Exception = e;
             return View("Exceptions.Detail", vd);
@@ -148,17 +149,18 @@ namespace StackExchange.Opserver.Controllers
         [Route("exceptions/preview")]
         public async Task<ActionResult> Preview(Guid id)
         {
-            var e = await CurrentStore.GetErrorAsync(CurrentLog, id).ConfigureAwait(false);
+            var e = await CurrentStore.GetErrorAsync(CurrentLog, id);
 
             var vd = GetModel(null);
             vd.Exception = e;
             return PartialView("Exceptions.Preview", vd);
         }
 
-        [Route("exceptions/detail/json"), AlsoAllow(Roles.Anonymous)]
+        [AllowAnonymous]
+        [Route("exceptions/detail/json")]
         public async Task<ActionResult> DetailJson(Guid id)
         {
-            var e = await CurrentStore.GetErrorAsync(CurrentLog, id).ConfigureAwait(false);
+            var e = await CurrentStore.GetErrorAsync(CurrentLog, id);
             if (e == null)
             {
                 return JsonNotFound();
@@ -189,7 +191,7 @@ namespace StackExchange.Opserver.Controllers
         [Route("exceptions/protect"), HttpPost, OnlyAllow(Roles.ExceptionsAdmin)]
         public async Task<ActionResult> Protect(Guid id, bool redirect = false)
         {
-            var success = await CurrentStore.ProtectErrorAsync(id).ConfigureAwait(false);
+            var success = await CurrentStore.ProtectErrorAsync(id);
             if (!success) JsonError("Unable to protect, error was not found in the log");
             return redirect ? Json(new { url = Url.Action(nameof(Exceptions), new { store = CurrentStore.Name, group = CurrentGroup, log = CurrentLog }) }) : Counts();
         }
@@ -197,17 +199,17 @@ namespace StackExchange.Opserver.Controllers
         [Route("exceptions/delete"), HttpPost, OnlyAllow(Roles.ExceptionsAdmin)]
         public async Task<ActionResult> Delete()
         {
-            var toDelete = await GetSearchAsync().ConfigureAwait(false);
+            var toDelete = await GetSearchAsync();
             // we don't care about success...if it's *already* deleted, that's fine
             // if we throw an exception trying to delete, that's another matter
             if (toDelete.Id.HasValue)
             {
                 // optimized single route
-                await CurrentStore.DeleteErrorAsync(toDelete.Id.Value).ConfigureAwait(false);
+                await CurrentStore.DeleteErrorAsync(toDelete.Id.Value);
             }
             else
             {
-                await CurrentStore.DeleteErrorsAsync(toDelete).ConfigureAwait(false);
+                await CurrentStore.DeleteErrorsAsync(toDelete);
             }
 
             return toDelete.Id.HasValue
@@ -219,7 +221,7 @@ namespace StackExchange.Opserver.Controllers
         public async Task<ActionResult> DeleteList(Guid[] ids, bool returnCounts = false)
         {
             if (ids == null || ids.Length == 0) return Json(true);
-            await CurrentStore.DeleteErrorsAsync(ids.ToList()).ConfigureAwait(false);
+            await CurrentStore.DeleteErrorsAsync(ids.ToList());
 
             return returnCounts ? Counts() : Json(new { url = Url.Action("Exceptions", new { store = CurrentStore.Name, log = CurrentLog, group = CurrentGroup }) });
         }
@@ -253,18 +255,18 @@ namespace StackExchange.Opserver.Controllers
         [Route("exceptions/jiraactions"), HttpGet, OnlyAllow(Roles.ExceptionsAdmin)]
         public ActionResult JiraActions(string appName)
         {
-            var issues = Settings.Jira.GetActionsForApplication(appName);
+            var issues = Module.Settings.Jira.GetActionsForApplication(appName);
             return View("Exceptions.Jira", issues);
         }
 
         [Route("exceptions/jiraaction"), HttpGet, OnlyAllow(Roles.ExceptionsAdmin)]
         public async Task<ActionResult> JiraAction(Guid id, int actionid)
         {
-            var e = await CurrentStore.GetErrorAsync(CurrentLog, id).ConfigureAwait(false);
+            var e = await CurrentStore.GetErrorAsync(CurrentLog, id);
             var user = Current.User;
-            var action = Settings.Jira.Actions.Find(i => i.Id == actionid);
-            var jiraClient = new JiraClient(Settings.Jira);
-            var result = await jiraClient.CreateIssueAsync(action, e, user == null ? "" : user.AccountName).ConfigureAwait(false);
+            var action = Module.Settings.Jira.Actions.Find(i => i.Id == actionid);
+            var jiraClient = new JiraClient(Module.Settings.Jira);
+            var result = await jiraClient.CreateIssueAsync(action, e, user == null ? "" : user.AccountName);
 
             if (string.IsNullOrWhiteSpace(result.Key))
             {
